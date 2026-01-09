@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+
+{% block title %}Sign Up - SmartDentalScan{% endblock %}
+
+{% block content %}
+<div class="mx-auto" style="max-width: 520px;">
+    <div class="card shadow p-4">
+        <h3 class="mb-3">Sign Up</h3>
+
+        {% if error %}
+        <div class="alert alert-danger" role="alert">{{ error }}</div>
+        {% endif %}
+
+        {% if success %}
+        <div class="alert alert-success" role="alert">{{ success }}</div>
+        {% endif %}
+
+        <form method="POST">
+            {% include '_csrf.html' %}
+            <div class="mb-3">
+                <label class="form-label">Email</label>
+                <input class="form-control" type="email" name="email" required>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Password</label>
+                <input class="form-control" type="password" name="password" minlength="8" required>
+                <div class="form-text">Minimum 8 characters.</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Confirm Password</label>
+                <input class="form-control" type="password" name="confirm_password" minlength="8" required>
+            </div>
+
+            <button class="btn btn-primary w-100" type="submit">Create account</button>
+        </form>
+
+        <hr>
+        <a href="/" class="btn btn-link p-0">Back to analyzer</a>
+    </div>
+</div>
+{% endblock %}

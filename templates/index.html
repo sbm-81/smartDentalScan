@@ -1,0 +1,265 @@
+{% extends 'base.html' %}
+
+{% block title %}SmartDentalScan{% endblock %}
+
+{% block extra_head %}
+    <style>
+        body {
+            background: #f4f6f8;
+        }
+        .card {
+            border-radius: 15px;
+        }
+        .confidence-bar {
+            height: 25px;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+
+        <div class="mb-4 text-center">
+            <h1 class="h3 mb-2">SmartDentalScan</h1>
+            <div class="text-muted">AI-based dental disease detection from an intraoral photo.</div>
+        </div>
+
+        <div class="card shadow p-4">
+            <h3 class="text-center mb-3">🦷 SmartDentalScan</h3>
+            <p class="text-center text-muted">AI-based Dental Disease Detection</p>
+
+            {% if error %}
+            <div class="alert alert-danger" role="alert">{{ error }}</div>
+            {% endif %}
+
+            <div class="text-muted small mb-3">
+                {% if current_user.is_authenticated %}
+                    Logged in as <b>{{ current_user.email }}</b>
+                {% else %}
+                    Not logged in
+                {% endif %}
+            </div>
+
+            {% if not current_user.is_authenticated %}
+                {% if session.get('guest_prediction_used') %}
+                    <div class="alert alert-warning" role="alert">
+                        Guest scan already used. Please <a href="/login" class="alert-link">log in</a> to scan again.
+                    </div>
+                {% else %}
+                    <div class="alert alert-info" role="alert">
+                        Guest mode: you can run <b>one</b> scan. Results are not saved.
+                        <a href="/signup" class="alert-link">Create an account</a> to save history.
+                    </div>
+                {% endif %}
+            {% endif %}
+
+            <form method="POST" action="/predict" enctype="multipart/form-data">
+                {% include '_csrf.html' %}
+                <div id="dropZone" class="border rounded p-3 mb-3" style="background: rgba(255,255,255,0.6);">
+                    <div class="small text-muted mb-2">
+                        Drag & drop an image here, or click to choose a file.
+                        <span class="ms-1">Accepted formats: <b>JPG</b>, <b>PNG</b> · Max size: <b>5 MB</b></span>
+                    </div>
+                    <input id="imageInput" class="form-control" type="file" name="image" accept="image/png,image/jpeg" required>
+                </div>
+
+                <div id="imagePreview" class="border rounded p-3 mb-3 d-none">
+                    <div class="row g-3 align-items-center">
+                        <div class="col-auto">
+                            <img id="previewImg" src="" alt="Selected image preview" class="rounded" style="width: 96px; height: 96px; object-fit: cover;">
+                        </div>
+                        <div class="col">
+                            <div class="fw-semibold" id="previewName"></div>
+                            <div class="text-muted small" id="previewMeta"></div>
+                            <div class="mt-2 d-flex gap-2">
+                                <button id="changeImageBtn" class="btn btn-outline-secondary btn-sm" type="button">Change image</button>
+                                <button id="removeImageBtn" class="btn btn-outline-danger btn-sm" type="button">Remove image</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button id="analyzeBtn" class="btn btn-primary w-100" type="submit">Analyze</button>
+            </form>
+
+            {% if prediction %}
+            <hr>
+
+            <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
+                <h5 class="m-0">🧠 Result</h5>
+                <a class="btn btn-outline-secondary btn-sm" href="/">Start New Scan</a>
+            </div>
+
+            <div class="mt-3 p-3 bg-light rounded">
+                <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
+                    <div class="fs-5 fw-semibold">
+                        {{ prediction }}
+                        <span class="badge bg-success ms-2">Top prediction</span>
+                    </div>
+                    <div class="text-muted">
+                        Confidence: <span class="fw-semibold">{{ confidence }}%</span>
+                    </div>
+                </div>
+
+                <div class="progress confidence-bar mt-3" aria-label="Top prediction confidence">
+                    <div class="progress-bar bg-success" role="progressbar"
+                         style="width: {{ confidence }}%;">
+                        {{ confidence }}%
+                    </div>
+                </div>
+            </div>
+
+            <hr>
+
+            <h6 class="mb-2">🔍 Top 3 Predictions</h6>
+            {% if top3 %}
+                {% for label, score in top3 %}
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span class="fw-semibold">{{ label }}</span>
+                        <span class="text-muted">{{ score }}%</span>
+                    </div>
+                    <div class="progress" style="height: 10px;">
+                        <div class="progress-bar" role="progressbar" style="width: {{ score }}%;"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="text-muted">No top-3 data available.</div>
+            {% endif %}
+
+            <hr>
+
+            <div class="alert alert-warning mt-3">
+                ⚠️ <b>Disclaimer:</b> This result is generated by an AI model.
+                Please consult a qualified dentist for medical advice.
+            </div>
+
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+
+<script>
+(() => {
+    const form = document.querySelector('form[action="/predict"]');
+    const input = document.getElementById('imageInput');
+    const dropZone = document.getElementById('dropZone');
+    const preview = document.getElementById('imagePreview');
+    const previewImg = document.getElementById('previewImg');
+    const previewName = document.getElementById('previewName');
+    const previewMeta = document.getElementById('previewMeta');
+    const changeBtn = document.getElementById('changeImageBtn');
+    const removeBtn = document.getElementById('removeImageBtn');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+
+    if (!form || !input || !dropZone || !preview || !previewImg || !previewName || !previewMeta || !changeBtn || !removeBtn || !analyzeBtn) return;
+
+    let objectUrl = null;
+
+    function formatBytes(bytes) {
+        if (!Number.isFinite(bytes) || bytes < 0) return '';
+        const units = ['B', 'KB', 'MB', 'GB'];
+        let size = bytes;
+        let unitIndex = 0;
+        while (size >= 1024 && unitIndex < units.length - 1) {
+            size /= 1024;
+            unitIndex += 1;
+        }
+        const shown = unitIndex === 0 ? String(Math.round(size)) : size.toFixed(1);
+        return `${shown} ${units[unitIndex]}`;
+    }
+
+    function clearPreview() {
+        if (objectUrl) {
+            URL.revokeObjectURL(objectUrl);
+            objectUrl = null;
+        }
+        previewImg.src = '';
+        previewName.textContent = '';
+        previewMeta.textContent = '';
+        preview.classList.add('d-none');
+    }
+
+    function showPreview(file) {
+        clearPreview();
+        if (!file) return;
+
+        objectUrl = URL.createObjectURL(file);
+        previewImg.src = objectUrl;
+        previewName.textContent = file.name || 'Selected image';
+        previewMeta.textContent = `${formatBytes(file.size)}${file.type ? ` · ${file.type}` : ''}`;
+        preview.classList.remove('d-none');
+    }
+
+    input.addEventListener('change', () => {
+        const file = input.files && input.files[0] ? input.files[0] : null;
+        showPreview(file);
+    });
+
+    function setDragging(isDragging) {
+        if (isDragging) {
+            dropZone.classList.add('border-primary');
+        } else {
+            dropZone.classList.remove('border-primary');
+        }
+    }
+
+    ;['dragenter', 'dragover'].forEach((evt) => {
+        dropZone.addEventListener(evt, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setDragging(true);
+        });
+    });
+
+    ;['dragleave', 'dragend'].forEach((evt) => {
+        dropZone.addEventListener(evt, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setDragging(false);
+        });
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragging(false);
+
+        const dt = e.dataTransfer;
+        if (!dt || !dt.files || dt.files.length === 0) return;
+
+        // Populate the SAME input using DataTransfer.
+        const transfer = new DataTransfer();
+        transfer.items.add(dt.files[0]);
+        input.files = transfer.files;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    dropZone.addEventListener('click', (e) => {
+        // Clicking anywhere in the drop zone should open the picker.
+        if (e.target !== input) input.click();
+    });
+
+    let submitting = false;
+    form.addEventListener('submit', () => {
+        if (submitting) return;
+        submitting = true;
+
+        analyzeBtn.disabled = true;
+        analyzeBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Analyzing…';
+    });
+
+    changeBtn.addEventListener('click', () => {
+        input.click();
+    });
+
+    removeBtn.addEventListener('click', () => {
+        input.value = '';
+        clearPreview();
+    });
+})();
+</script>
+{% endblock %}

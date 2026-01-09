@@ -1,0 +1,35 @@
+Python
+pycache/
+*.py[cod]
+*.pyo
+.pyd
+.venv/
+venv/
+ENV/
+.env
+.env.
+
+Flask / instance
+instance/
+*.sqlite
+*.db
+
+Uploads (user data)
+uploads/
+
+Logs
+*.log
+
+Jupyter
+.ipynb_checkpoints/
+
+OS/editor
+.DS_Store
+.vscode/
+
+Large ML artifacts (avoid committing weights)
+*.pth
+*.pt
+
+Local/sensitive files
+cookies.txt

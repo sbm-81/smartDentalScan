@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block title %}History - SmartDentalScan{% endblock %}
+
+{% block content %}
+<div class="mx-auto" style="max-width: 920px;">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3 class="m-0">Prediction History</h3>
+        <a href="/" class="btn btn-outline-secondary btn-sm">Back</a>
+    </div>
+
+    {% if items|length == 0 %}
+        <div class="alert alert-info" role="alert">No predictions yet.</div>
+    {% else %}
+        <div class="list-group">
+            {% for item in items %}
+            <div class="list-group-item">
+                <div class="row align-items-center">
+                    <div class="col-3 col-md-2">
+                        <a href="/history/{{ item.id }}">
+                            <img
+                                src="{{ url_for('uploaded_file', filename=item.filename) }}"
+                                alt="uploaded"
+                                class="img-fluid rounded"
+                                style="max-height: 90px; object-fit: cover;"
+                            >
+                        </a>
+                    </div>
+                    <div class="col">
+                        <div><a href="/history/{{ item.id }}"><b>{{ item.label }}</b></a></div>
+                        <div class="text-muted">Confidence: {{ item.confidence }}%</div>
+                        <div class="text-muted">Date: {{ item.created_at }}</div>
+                    </div>
+                    <div class="col-auto">
+                        {% if current_user.is_authenticated %}
+                        <form method="POST" action="/prediction/{{ item.id }}/delete" class="m-0" onsubmit="return confirm('Are you sure?');">
+                            {% include '_csrf.html' %}
+                            <button class="btn btn-outline-danger btn-sm" type="submit">Delete</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
